@@ -1,0 +1,10 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+# secrets: everything except the template
+.env*
+!.env.example
+# local publishing notes, not for the public repo
+github-instructions.md

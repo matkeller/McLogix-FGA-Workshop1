@@ -1,0 +1,29 @@
+model
+  schema 1.1
+
+type user
+
+type organization
+  relations
+    define admin: [user]
+
+type supplier
+  relations
+    define platform: [organization]
+    define manager: [user]
+    define sales: [user]
+    # Intermediate relation: the DSL cannot traverse two hops in one expression
+    # (order -> supplier -> organization), so we hop organization -> supplier here
+    # and let `order` traverse supplier -> platform_admin.
+    define platform_admin: admin from platform
+    define can_place_order: sales or manager
+
+type order
+  relations
+    define supplier: [supplier]
+    define placed_by: [user]
+    define can_view: placed_by or manager from supplier or platform_admin from supplier
+    # can_update and can_delete are identical today but separate on purpose:
+    # they can diverge later without any application code change.
+    define can_update: placed_by or manager from supplier or platform_admin from supplier
+    define can_delete: placed_by or manager from supplier or platform_admin from supplier

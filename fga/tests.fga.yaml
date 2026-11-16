@@ -1,0 +1,325 @@
+# Run with: npm run test:model   (fga model test --tests fga/tests.fga.yaml)
+# Covers all 5 personas: can_place_order on both suppliers, can_view / can_update / can_delete on
+# all 4 orders, and list_objects for can_view. The explicit negatives are the point of the exercise:
+#   - alice cannot view 1002, 1003, 1004     - bob cannot place for supplier_a
+#   - marcus cannot place for any supplier   - andy cannot touch supplier_b's order 1004
+name: McLogix 360 FGA workshop
+model_file: ./model.fga
+tuple_file: ./tuples.json
+
+tests:
+  - name: alice
+    check:
+      - user: user:alice
+        object: supplier:supplier_a
+        assertions:
+          can_place_order: true
+      - user: user:alice
+        object: supplier:supplier_b
+        assertions:
+          can_place_order: false
+      - user: user:alice
+        object: order:1001
+        assertions:
+          can_view: true
+      - user: user:alice
+        object: order:1002
+        assertions:
+          can_view: false
+      - user: user:alice
+        object: order:1003
+        assertions:
+          can_view: false
+      - user: user:alice
+        object: order:1004
+        assertions:
+          can_view: false
+      - user: user:alice
+        object: order:1001
+        assertions:
+          can_update: true
+      - user: user:alice
+        object: order:1002
+        assertions:
+          can_update: false
+      - user: user:alice
+        object: order:1003
+        assertions:
+          can_update: false
+      - user: user:alice
+        object: order:1004
+        assertions:
+          can_update: false
+      - user: user:alice
+        object: order:1001
+        assertions:
+          can_delete: true
+      - user: user:alice
+        object: order:1002
+        assertions:
+          can_delete: false
+      - user: user:alice
+        object: order:1003
+        assertions:
+          can_delete: false
+      - user: user:alice
+        object: order:1004
+        assertions:
+          can_delete: false
+    list_objects:
+      - user: user:alice
+        type: order
+        assertions:
+          can_view: [order:1001]
+  - name: armando
+    check:
+      - user: user:armando
+        object: supplier:supplier_a
+        assertions:
+          can_place_order: true
+      - user: user:armando
+        object: supplier:supplier_b
+        assertions:
+          can_place_order: false
+      - user: user:armando
+        object: order:1001
+        assertions:
+          can_view: false
+      - user: user:armando
+        object: order:1002
+        assertions:
+          can_view: true
+      - user: user:armando
+        object: order:1003
+        assertions:
+          can_view: false
+      - user: user:armando
+        object: order:1004
+        assertions:
+          can_view: false
+      - user: user:armando
+        object: order:1001
+        assertions:
+          can_update: false
+      - user: user:armando
+        object: order:1002
+        assertions:
+          can_update: true
+      - user: user:armando
+        object: order:1003
+        assertions:
+          can_update: false
+      - user: user:armando
+        object: order:1004
+        assertions:
+          can_update: false
+      - user: user:armando
+        object: order:1001
+        assertions:
+          can_delete: false
+      - user: user:armando
+        object: order:1002
+        assertions:
+          can_delete: true
+      - user: user:armando
+        object: order:1003
+        assertions:
+          can_delete: false
+      - user: user:armando
+        object: order:1004
+        assertions:
+          can_delete: false
+    list_objects:
+      - user: user:armando
+        type: order
+        assertions:
+          can_view: [order:1002]
+  - name: andy
+    check:
+      - user: user:andy
+        object: supplier:supplier_a
+        assertions:
+          can_place_order: true
+      - user: user:andy
+        object: supplier:supplier_b
+        assertions:
+          can_place_order: false
+      - user: user:andy
+        object: order:1001
+        assertions:
+          can_view: true
+      - user: user:andy
+        object: order:1002
+        assertions:
+          can_view: true
+      - user: user:andy
+        object: order:1003
+        assertions:
+          can_view: true
+      - user: user:andy
+        object: order:1004
+        assertions:
+          can_view: false
+      - user: user:andy
+        object: order:1001
+        assertions:
+          can_update: true
+      - user: user:andy
+        object: order:1002
+        assertions:
+          can_update: true
+      - user: user:andy
+        object: order:1003
+        assertions:
+          can_update: true
+      - user: user:andy
+        object: order:1004
+        assertions:
+          can_update: false
+      - user: user:andy
+        object: order:1001
+        assertions:
+          can_delete: true
+      - user: user:andy
+        object: order:1002
+        assertions:
+          can_delete: true
+      - user: user:andy
+        object: order:1003
+        assertions:
+          can_delete: true
+      - user: user:andy
+        object: order:1004
+        assertions:
+          can_delete: false
+    list_objects:
+      - user: user:andy
+        type: order
+        assertions:
+          can_view: [order:1001, order:1002, order:1003]
+  - name: bob
+    check:
+      - user: user:bob
+        object: supplier:supplier_a
+        assertions:
+          can_place_order: false
+      - user: user:bob
+        object: supplier:supplier_b
+        assertions:
+          can_place_order: true
+      - user: user:bob
+        object: order:1001
+        assertions:
+          can_view: false
+      - user: user:bob
+        object: order:1002
+        assertions:
+          can_view: false
+      - user: user:bob
+        object: order:1003
+        assertions:
+          can_view: false
+      - user: user:bob
+        object: order:1004
+        assertions:
+          can_view: true
+      - user: user:bob
+        object: order:1001
+        assertions:
+          can_update: false
+      - user: user:bob
+        object: order:1002
+        assertions:
+          can_update: false
+      - user: user:bob
+        object: order:1003
+        assertions:
+          can_update: false
+      - user: user:bob
+        object: order:1004
+        assertions:
+          can_update: true
+      - user: user:bob
+        object: order:1001
+        assertions:
+          can_delete: false
+      - user: user:bob
+        object: order:1002
+        assertions:
+          can_delete: false
+      - user: user:bob
+        object: order:1003
+        assertions:
+          can_delete: false
+      - user: user:bob
+        object: order:1004
+        assertions:
+          can_delete: true
+    list_objects:
+      - user: user:bob
+        type: order
+        assertions:
+          can_view: [order:1004]
+  - name: marcus
+    check:
+      - user: user:marcus
+        object: supplier:supplier_a
+        assertions:
+          can_place_order: false
+      - user: user:marcus
+        object: supplier:supplier_b
+        assertions:
+          can_place_order: false
+      - user: user:marcus
+        object: order:1001
+        assertions:
+          can_view: true
+      - user: user:marcus
+        object: order:1002
+        assertions:
+          can_view: true
+      - user: user:marcus
+        object: order:1003
+        assertions:
+          can_view: true
+      - user: user:marcus
+        object: order:1004
+        assertions:
+          can_view: true
+      - user: user:marcus
+        object: order:1001
+        assertions:
+          can_update: true
+      - user: user:marcus
+        object: order:1002
+        assertions:
+          can_update: true
+      - user: user:marcus
+        object: order:1003
+        assertions:
+          can_update: true
+      - user: user:marcus
+        object: order:1004
+        assertions:
+          can_update: true
+      - user: user:marcus
+        object: order:1001
+        assertions:
+          can_delete: true
+      - user: user:marcus
+        object: order:1002
+        assertions:
+          can_delete: true
+      - user: user:marcus
+        object: order:1003
+        assertions:
+          can_delete: true
+      - user: user:marcus
+        object: order:1004
+        assertions:
+          can_delete: true
+    list_objects:
+      - user: user:marcus
+        type: order
+        assertions:
+          can_view: [order:1001, order:1002, order:1003, order:1004]

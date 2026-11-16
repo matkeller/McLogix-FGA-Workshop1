@@ -1,0 +1,17 @@
+[
+  { "user": "organization:mclogix", "relation": "platform", "object": "supplier:supplier_a" },
+  { "user": "organization:mclogix", "relation": "platform", "object": "supplier:supplier_b" },
+  { "user": "user:marcus", "relation": "admin", "object": "organization:mclogix" },
+  { "user": "user:alice", "relation": "sales", "object": "supplier:supplier_a" },
+  { "user": "user:armando", "relation": "sales", "object": "supplier:supplier_a" },
+  { "user": "user:andy", "relation": "manager", "object": "supplier:supplier_a" },
+  { "user": "user:bob", "relation": "sales", "object": "supplier:supplier_b" },
+  { "user": "supplier:supplier_a", "relation": "supplier", "object": "order:1001" },
+  { "user": "user:alice", "relation": "placed_by", "object": "order:1001" },
+  { "user": "supplier:supplier_a", "relation": "supplier", "object": "order:1002" },
+  { "user": "user:armando", "relation": "placed_by", "object": "order:1002" },
+  { "user": "supplier:supplier_a", "relation": "supplier", "object": "order:1003" },
+  { "user": "user:andy", "relation": "placed_by", "object": "order:1003" },
+  { "user": "supplier:supplier_b", "relation": "supplier", "object": "order:1004" },
+  { "user": "user:bob", "relation": "placed_by", "object": "order:1004" }
+]

@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: <html class="dark"> (set by the theme script in layout.tsx / ThemeToggle). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+html.dark {
+  color-scheme: dark; /* native selects, inputs and scrollbars follow the theme */
+}

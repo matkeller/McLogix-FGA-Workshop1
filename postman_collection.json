@@ -1,0 +1,1669 @@
+{
+  "info": {
+    "name": "McLogix 360 FGA Workshop",
+    "description": "Run the folders in order with the Collection Runner after `npm run setup` and `npm run dev`. Folder 0 resets data so the whole collection is re-runnable. Identity comes from the x-user-id header: DEMO ONLY, never do this in production.\n\nREAD THIS FIRST: FGA decides, the API serves the data. The responses in this collection are NOT FGA responses. Auth0 FGA only stores relationships and answers 'is this user allowed?' (allowed: true/false, or a list of ids). It has never heard of item names or quantities. The API layer asks FGA and, only if the answer is yes, returns the order from the application's own database. A 200 with an item and quantity = FGA said yes + data from the database. A 403 = FGA said no, and the API layer returned no order data. A 404 = our database has no such order, so FGA was never asked. The 'fga' array in each response is FGA's side of the conversation, included for the workshop only. See README.md, 'The one idea to take away'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Reset & Sync",
+      "description": "Run first. Resets the in-memory DB and replaces ALL tuples with fga/tuples.json. Demo only: this endpoint is unauthenticated and destructive.",
+      "item": [
+        {
+          "name": "POST /api/seed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"4 orders and 15 tuples\", () => { const d = pm.response.json().data; pm.expect(d.orders).to.eql(4); pm.expect(d.tuplesWritten).to.eql(15); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/seed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "seed"
+              ]
+            },
+            "description": "Resets the DB and re-syncs FGA tuples. No supplierId needed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alice (Sales, Supplier A)",
+      "description": "Sales rep at Supplier A. Can place orders for supplier_a only; sees only orders she placed.",
+      "item": [
+        {
+          "name": "GET /orders (sees only 1001)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.map(o => o.id).sort();",
+                  "pm.test(\"sees exactly orders 1001\", () => pm.expect(ids).to.eql([\"1001\"]));",
+                  "pm.test(\"response carries an fga trace\", () => pm.expect(pm.response.json().fga).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "listObjects(user:alice, can_view, order). No supplierId needed.\n\nWhat to notice: FGA's listObjects returned only the id order:1001. The item/quantity rows were looked up in the application database."
+          }
+        },
+        {
+          "name": "GET /orders/1001 (her own)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=true\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1001"
+              ]
+            },
+            "description": "Allowed: alice is placed_by order:1001.\n\nWhat to notice: the item and quantity in this 200 come from the application database. FGA only said allowed: true (see the fga array). Code: app/api/orders/[id]/route.ts, the respond(200, ...) line."
+          }
+        },
+        {
+          "name": "GET /orders/1002 (Armando's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1002",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1002"
+              ]
+            },
+            "description": "Denied: same supplier, but a different sales rep placed it.\n\nWhat to notice: FGA said allowed: false. The API layer turned that into a 403 and returned NO order data; the row never leaves the database."
+          }
+        },
+        {
+          "name": "GET /orders/1004 (Supplier B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "description": "Denied: other tenant."
+          }
+        },
+        {
+          "name": "GET /orders/9999 (unknown)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "9999"
+              ]
+            },
+            "description": "Unknown order returns 404.\n\nWhat to notice: the 404 comes from the application database. FGA was never asked, so the fga array is empty."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"aliceOrderId\", pm.response.json().data.id);",
+                  "pm.test(\"tuples written\", () => pm.expect(pm.response.json().fga.filter(e => e.call === \"write\").length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_a (her own supplier). Expect 201."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_b (cross-tenant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_b\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_b. Alice belongs to supplier_a, so FGA denies. Expect 403."
+          }
+        },
+        {
+          "name": "PATCH /orders/1001 (her own)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Allowed: can_update via placed_by."
+          }
+        },
+        {
+          "name": "PATCH /orders/1002 (Armando's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1002",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1002"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Denied."
+          }
+        },
+        {
+          "name": "DELETE /orders/1002 (Armando's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1002",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1002"
+              ]
+            },
+            "description": "Denied."
+          }
+        },
+        {
+          "name": "DELETE the order she just placed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{aliceOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{aliceOrderId}}"
+              ]
+            },
+            "description": "Allowed: she placed it. Cleans up so later folders see the seed data."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Armando (Sales, Supplier A)",
+      "description": "Second sales rep at Supplier A. Same supplier as Alice, but sees only his own orders.",
+      "item": [
+        {
+          "name": "GET /orders (sees only 1002)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.map(o => o.id).sort();",
+                  "pm.test(\"sees exactly orders 1002\", () => pm.expect(ids).to.eql([\"1002\"]));",
+                  "pm.test(\"response carries an fga trace\", () => pm.expect(pm.response.json().fga).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "armando",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "No supplierId needed."
+          }
+        },
+        {
+          "name": "GET /orders/1001 (Alice's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "armando",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1001"
+              ]
+            },
+            "description": "Denied: same supplier, different placer."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"armandoOrderId\", pm.response.json().data.id);",
+                  "pm.test(\"tuples written\", () => pm.expect(pm.response.json().fga.filter(e => e.call === \"write\").length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "armando",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_a. Expect 201."
+          }
+        },
+        {
+          "name": "PATCH /orders/1001 (Alice's)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "armando",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Denied."
+          }
+        },
+        {
+          "name": "DELETE the order he just placed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "armando",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{armandoOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{armandoOrderId}}"
+              ]
+            },
+            "description": "Allowed. Cleans up."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Andy (Manager, Supplier A)",
+      "description": "Manager at Supplier A. Sees and manages ANY supplier_a order, nothing at supplier_b.",
+      "item": [
+        {
+          "name": "GET /orders (sees 1001, 1002, 1003)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.map(o => o.id).sort();",
+                  "pm.test(\"sees exactly orders 1001, 1002, 1003\", () => pm.expect(ids).to.eql([\"1001\",\"1002\",\"1003\"]));",
+                  "pm.test(\"response carries an fga trace\", () => pm.expect(pm.response.json().fga).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "No supplierId needed."
+          }
+        },
+        {
+          "name": "GET /orders/1004 (Supplier B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "description": "Denied: managers are scoped to their own supplier."
+          }
+        },
+        {
+          "name": "PATCH /orders/1002 (Armando's, via manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1002",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1002"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Allowed: manager from supplier."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"andyOrderId\", pm.response.json().data.id);",
+                  "pm.test(\"tuples written\", () => pm.expect(pm.response.json().fga.filter(e => e.call === \"write\").length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_a. Managers can place orders. Expect 201."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_b (cross-tenant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_b\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_b. Denied."
+          }
+        },
+        {
+          "name": "DELETE /orders/1004 (Supplier B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "description": "Denied."
+          }
+        },
+        {
+          "name": "DELETE the order he just placed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "andy",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{andyOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{andyOrderId}}"
+              ]
+            },
+            "description": "Allowed. Cleans up."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bob (Sales, Supplier B)",
+      "description": "Sales rep at Supplier B. Supplier B shares the same model as Supplier A; only the tuples differ.",
+      "item": [
+        {
+          "name": "GET /orders (sees only 1004)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.map(o => o.id).sort();",
+                  "pm.test(\"sees exactly orders 1004\", () => pm.expect(ids).to.eql([\"1004\"]));",
+                  "pm.test(\"response carries an fga trace\", () => pm.expect(pm.response.json().fga).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "No supplierId needed."
+          }
+        },
+        {
+          "name": "GET /orders/1001 (Supplier A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1001"
+              ]
+            },
+            "description": "Denied: other tenant."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_a (cross-tenant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_a. Bob belongs to supplier_b, so FGA denies. Expect 403."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_b",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"bobOrderId\", pm.response.json().data.id);",
+                  "pm.test(\"tuples written\", () => pm.expect(pm.response.json().fga.filter(e => e.call === \"write\").length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_b\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_b. Expect 201."
+          }
+        },
+        {
+          "name": "PATCH /orders/1004 (his own)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Allowed."
+          }
+        },
+        {
+          "name": "DELETE the order he just placed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "bob",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{bobOrderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{bobOrderId}}"
+              ]
+            },
+            "description": "Allowed. Cleans up."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Marcus (Admin, McLogix platform)",
+      "description": "Platform admin. Sees and manages every order for every supplier, but is not a member of any supplier, so cannot place orders.",
+      "item": [
+        {
+          "name": "Setup: Alice places an order (as alice)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"marcusTargetId\", pm.response.json().data.id);",
+                  "pm.test(\"tuples written\", () => pm.expect(pm.response.json().fga.filter(e => e.call === \"write\").length).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "alice",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Setup step run as alice with supplierId supplier_a so Marcus has something to act on."
+          }
+        },
+        {
+          "name": "GET /orders (sees all 4 seed orders + the setup order)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"sees 5 orders (4 seeded + 1 setup)\", () => pm.expect(pm.response.json().data.length).to.eql(5));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "No supplierId needed."
+          }
+        },
+        {
+          "name": "GET /orders/1004 (Supplier B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=true\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "description": "Allowed via platform_admin."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_a\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_a. Admin is not a sales rep or manager of any supplier. Expect 403."
+          }
+        },
+        {
+          "name": "POST /orders supplierId=supplier_b",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 403\", () => pm.response.to.have.status(403));",
+                  "const fga = pm.response.json().fga;",
+                  "pm.test(\"FGA decision allowed=false\", () => pm.expect(fga.find(e => e.call === \"check\").allowed).to.eql(false));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": \"supplier_b\",\n  \"item\": \"Postman test item\",\n  \"quantity\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Use supplierId supplier_b. Expect 403."
+          }
+        },
+        {
+          "name": "PATCH /orders/1004",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/1004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "1004"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shipped\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Allowed."
+          }
+        },
+        {
+          "name": "DELETE the setup order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{marcusTargetId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{marcusTargetId}}"
+              ]
+            },
+            "description": "Allowed: platform_admin from supplier."
+          }
+        },
+        {
+          "name": "GET /orders (back to the 4 seed orders)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.map(o => o.id).sort();",
+                  "pm.test(\"sees exactly orders 1001, 1002, 1003, 1004\", () => pm.expect(ids).to.eql([\"1001\",\"1002\",\"1003\",\"1004\"]));",
+                  "pm.test(\"response carries an fga trace\", () => pm.expect(pm.response.json().fga).to.be.an(\"array\").that.is.not.empty);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "marcus",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "No supplierId needed."
+          }
+        }
+      ]
+    }
+  ]
+}
